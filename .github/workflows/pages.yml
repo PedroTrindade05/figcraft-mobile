@@ -1,0 +1,81 @@
+# Builds FigCraft's web version and publishes it on GitHub Pages at every push to main.
+# Settings → Pages → Source must be "GitHub Actions" for the deploy job to work.
+name: Publish web version
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One publication at a time; a newer push replaces a run still waiting.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  # The browser has no system fonts: the web build embeds these (Inter, Noto Sans Georgian).
+  # Same craft-fonts commit FigCraft's own releases use.
+  CRAFT_FONTS_REF: 37827adc41fd165f9a9234ac40f94dbad353aa69
+  TRUNK_VERSION: 0.21.14
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check out craft-fonts
+        uses: actions/checkout@v4
+        with:
+          repository: storytold/craft-fonts
+          ref: ${{ env.CRAFT_FONTS_REF }}
+          path: craft-fonts
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: pages-web
+
+      - name: Install trunk
+        run: |
+          curl -sSfL "https://github.com/trunk-rs/trunk/releases/download/v${TRUNK_VERSION}/trunk-x86_64-unknown-linux-gnu.tar.gz" | tar -xz -C "$HOME/.cargo/bin"
+          trunk --version
+
+      - name: Build the web version
+        working-directory: apps/figcraft-web
+        env:
+          CRAFT_FONTS_DIR: ${{ github.workspace }}/craft-fonts
+          CRAFT_FONTS_REQUIRED: "1"
+        run: trunk build --release
+
+      - name: Prepare the site
+        run: |
+          touch dist/web/.nojekyll
+          ls -lh dist/web
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist/web
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
