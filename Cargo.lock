@@ -2192,6 +2192,7 @@ dependencies = [
  "figcraft-svg",
  "figcraft-text",
  "figcraft-vectordrawable",
+ "getrandom 0.4.3",
  "image",
  "log",
  "regex",

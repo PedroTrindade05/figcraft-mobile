@@ -89,6 +89,9 @@ pub struct Prefs {
     /// [`online`]), most recently opened first, at most [`online::MAX_ONLINE_FILES`].
     #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "online::read")]
     pub online_files: Vec<online::OnlineFile>,
+    /// Your personal account key (a password: see [`crate::sharing::account`]); empty: none.
+    #[serde(skip_serializing_if = "AccountKey::is_empty")]
+    pub account_key: AccountKey,
     /// The Getting started tips on the home screen were closed (Help ▸ Getting started shows them
     /// again).
     pub getting_started_dismissed: bool,
@@ -156,6 +159,7 @@ impl Default for Prefs {
             publish_server: live::DEFAULT_SERVER.into(),
             recent_files: Vec::new(),
             online_files: Vec::new(),
+            account_key: AccountKey::default(),
             getting_started_dismissed: false,
             link_notice_skipped: false,
             home_views: BTreeMap::new(),
@@ -219,4 +223,33 @@ pub struct Clipboard {
     /// The document copied from (pastes into other files follow its mains) and its file path.
     pub source: Option<Arc<Document>>,
     pub source_path: Option<String>,
+}
+
+/// The personal account key: a password, so `Debug` never shows it, and a value in the preferences
+/// file that can't be a key reads as none.
+#[derive(Clone, Default, PartialEq, Eq, Serialize)]
+#[serde(transparent)]
+pub struct AccountKey(pub String);
+
+impl AccountKey {
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl std::fmt::Debug for AccountKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(if self.0.is_empty() { "AccountKey(none)" } else { "AccountKey(set)" })
+    }
+}
+
+impl<'de> Deserialize<'de> for AccountKey {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> std::result::Result<Self, D::Error> {
+        let v = Value::deserialize(d).unwrap_or(Value::Null);
+        Ok(AccountKey(v.as_str().and_then(crate::sharing::account::normalize).unwrap_or_default()))
+    }
 }

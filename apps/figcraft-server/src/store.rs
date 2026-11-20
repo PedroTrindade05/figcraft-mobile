@@ -54,6 +54,7 @@ use crate::codes::{self, Sealed};
 use crate::directory::{Directory, DirectoryConfig};
 use crate::disk::{self, ACTIONS, ASSET_ACTIONS, LIBRARY, LINKS, LOG, LOG_HEADER, META, SNAPSHOT, USAGE};
 
+mod account;
 mod backend;
 mod files;
 mod journal;
@@ -195,6 +196,9 @@ struct Meta {
     /// When someone last opened it (seconds since 1970).
     #[serde(default)]
     opened: u64,
+    /// The personal account it is in: SHA-256 of the account key (hex). See `store/account.rs`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    account: Option<String>,
 }
 
 impl Meta {

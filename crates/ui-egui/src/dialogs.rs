@@ -14,6 +14,7 @@ use crate::export_panel::{export_layers, save_one, suggested_name};
 use crate::i18n::{self, tr, tr_noop, trf, trn};
 use crate::theme::{Tokens, regular, semibold};
 
+mod account;
 mod batch_rename;
 mod color_profile;
 mod export;
@@ -211,6 +212,10 @@ pub fn keys(app: &mut FigApp, ctx: &Context) {
 /// branch, export preview, colour profile, plugin, live join/publish, online dialogs and
 /// close confirmation.
 pub fn show(app: &mut FigApp, ctx: &Context) {
+    // The personal account key shown in Preferences is forgotten once it closes.
+    if !app.ui.preferences {
+        account::forget_shown(ctx);
+    }
     // Dropped files waiting to open: their card, then (once it has shown) the files.
     crate::pending_open::pending_opens(app, ctx);
     crate::import_report::show(app, ctx);
@@ -299,6 +304,8 @@ pub fn show(app: &mut FigApp, ctx: &Context) {
             if prefs.publish_server.is_empty() {
                 crate::widgets::label(ui, tr("Online sharing is off: files are shared on the local network only."), t.text_secondary);
             }
+            ui.add_space(8.0);
+            account::settings(app, ui, &t);
             ui.add_space(8.0);
             ui.horizontal(|ui| {
                 ui.label(tr("Nudge amount"));

@@ -451,6 +451,7 @@ impl FigApp {
         if let Some(notice) = ctx.data_mut(|d| d.remove_temp::<&'static str>(widgets::scrub_notice_id())) {
             self.toast(i18n::tr(notice));
         }
+        crate::home::online::keep_account(self, &ctx);
         self.toast_ui(&ctx);
         // A rename started after the layers panel drew (Cmd/Ctrl+R, a double-click) opens its field
         // next frame; while the panel isn't drawn (the interface hidden or minimized, the panel

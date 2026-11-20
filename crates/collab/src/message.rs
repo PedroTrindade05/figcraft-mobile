@@ -391,6 +391,34 @@ pub enum Admin {
     /// [`AdminReply::Team`]; they are joined with [`ResolveTeam`]. Servers older than this request
     /// can't read it.
     Team,
+    /// On an open hosting connection that manages `file` (its owner token): put the file in the
+    /// personal account whose key is `account`, so every device with that key lists it
+    /// ([`Admin::Account`]) and manages it (the key opens hosting connections on it as its owner
+    /// token does). [`AdminReply::Done`]. Servers older than this request can't read it.
+    Claim { file: String, account: String },
+    /// On an open hosting connection (no file named in its opening): the files of the personal
+    /// account whose key is `key`, at most [`MAX_ACCOUNT`]: [`AdminReply::Account`]. Servers older
+    /// than this request can't read it.
+    Account { key: String },
+}
+
+/// The most files an [`AdminReply::Account`] lists (the most recently changed ones).
+pub const MAX_ACCOUNT: usize = 500;
+
+/// The shortest personal account key a server takes ([`Admin::Claim`]): a key is a password.
+pub const MIN_ACCOUNT_KEY: usize = 16;
+
+/// A file of a personal account ([`AdminReply::Account`]).
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AccountFile {
+    /// Its id and name on the server.
+    pub id: String,
+    pub name: String,
+    /// When it was put there and last changed (seconds since 1970).
+    pub created: u64,
+    pub updated: u64,
+    /// When it is deleted if nobody opens it (seconds since 1970).
+    pub expires: Option<u64>,
 }
 
 /// The most files an [`AdminReply::Team`] lists (the most recently changed ones).
@@ -517,6 +545,8 @@ pub enum AdminReply {
         web: String,
         files: Vec<TeamFile>,
     },
+    /// The answer to [`Admin::Account`]: the account's files, most recently changed first.
+    Account(Vec<AccountFile>),
 }
 
 /// A file with what its operator moderates by.

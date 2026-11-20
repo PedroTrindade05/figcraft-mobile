@@ -10,6 +10,9 @@ const LOADING_ID: &str = "figcraft_loading";
 const STOPPED_ID: &str = "figcraft_stopped";
 /// The local storage key your name is kept under ([`crate::kept`]).
 const NAME_KEY: &str = "figcraft.userName";
+/// The local storage key your personal account key and online files are kept under
+/// ([`crate::kept`]): without them the phone would forget its account at each visit.
+const ACCOUNT_KEY: &str = "figcraft.account";
 /// The local storage key the recovery copies are kept under ([`crate::recovery`]): a JSON list of
 /// base64 `.figcraft` files.
 const RECOVERY_KEY: &str = "figcraft.recovery";
@@ -67,6 +70,7 @@ pub fn start() {
                         session.prefs.publish_server = server;
                     }
                     crate::kept::restore_name(&mut session, local_storage().and_then(|s| s.get_item(NAME_KEY).ok().flatten()));
+                    crate::kept::restore_account(&mut session, local_storage().and_then(|s| s.get_item(ACCOUNT_KEY).ok().flatten()));
                     let recovered = restore_unsaved(&mut session);
                     // Live sessions: the browser joins sessions and publishes files to servers;
                     // whatever arrives on the socket wakes the page for a frame.
@@ -307,10 +311,19 @@ impl Services for WebServices {
     fn reduce_motion(&self) -> bool {
         self.reduce_motion.as_ref().is_some_and(web_sys::MediaQueryList::matches)
     }
-    /// Only your name is kept ([`crate::kept`]): the rest starts afresh with each page.
+    /// Your name, your personal account key and your online files are kept ([`crate::kept`]): the
+    /// rest starts afresh with each page.
     fn save_prefs(&mut self, prefs: &figcraft_engine::Prefs) {
-        if let Some(Err(e)) = local_storage().map(|s| s.set_item(NAME_KEY, &prefs.user_name)) {
+        let Some(storage) = local_storage() else { return };
+        if let Err(e) = storage.set_item(NAME_KEY, &prefs.user_name) {
             log::warn!("couldn't keep your name: {e:?}");
+        }
+        let kept = match crate::kept::account(prefs) {
+            Some(json) => storage.set_item(ACCOUNT_KEY, &json),
+            None => storage.remove_item(ACCOUNT_KEY),
+        };
+        if let Err(e) = kept {
+            log::warn!("couldn't keep your account: {e:?}");
         }
     }
     /// The browser's language (`navigator.language`).

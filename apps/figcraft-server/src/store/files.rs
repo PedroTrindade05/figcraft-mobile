@@ -118,8 +118,17 @@ impl Store {
         let (edit, edit_token) = new_link(Access::Edit, "Published (edit)", t)?;
         let (view, view_token) = new_link(Access::View, "Published (view)", t)?;
         let owner = ip.map(|_| token::secret()).transpose()?;
-        let meta =
-            Meta { name, created: t, updated: t, seq: 0, library: None, owner: owner.as_deref().map(hash), ip: ip.map(|i| i.to_string()), opened: 0 };
+        let meta = Meta {
+            name,
+            created: t,
+            updated: t,
+            seq: 0,
+            library: None,
+            owner: owner.as_deref().map(hash),
+            ip: ip.map(|i| i.to_string()),
+            opened: 0,
+            account: None,
+        };
         let dir = self.dir(&id);
         let written = fs::create_dir_all(&dir)
             .map_err(|e| e.to_string())
@@ -162,10 +171,11 @@ impl Store {
             .collect()
     }
 
-    /// Owner token `owner` manages file `file` (one published without the key).
+    /// Owner token `owner` manages file `file` (one published without the key), or `owner` is the
+    /// key of the personal account the file is in.
     pub(super) fn owns(&self, file: &str, owner: &str) -> bool {
         let presented = hash(owner);
-        self.files.get(file).and_then(|e| e.meta.owner.as_deref()).is_some_and(|h| same_secret(&presented, h))
+        self.files.get(file).and_then(|e| e.meta.owner.as_deref()).is_some_and(|h| same_secret(&presented, h)) || self.in_account(file, owner)
     }
 
     /// What became of the files these `(file id, owner token)` pairs own: each one's name, links

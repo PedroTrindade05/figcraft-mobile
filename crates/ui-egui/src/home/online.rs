@@ -33,6 +33,8 @@ const ROW: f32 = 36.0;
 /// UI-only state of the Online section.
 #[derive(Default)]
 pub struct OnlineUi {
+    /// When files were last listed to put new ones in the personal account ([`keep_account`]).
+    pub account_tried: Option<f64>,
     /// The frame the section last drew in: it asks the servers when it shows again after a gap.
     drawn: Option<u64>,
     /// Remove from server… was chosen for this file (server, id, name): its confirmation shows.
@@ -66,6 +68,20 @@ fn refresh(app: &mut FigApp, ctx: &egui::Context) {
     if ask && !app.session.waiting_for(FILES) {
         app.run_background(ctx, FILES, json!({"refresh": true}), Box::new(|_, _, _| {}));
     }
+}
+
+/// With a personal account, a file just put online goes in it: the files are listed again in the
+/// background (at most every 30 s, so a server that can't be reached isn't asked every frame).
+pub fn keep_account(app: &mut FigApp, ctx: &egui::Context) {
+    if !app.session.account_pending() || app.session.waiting_for(FILES) {
+        return;
+    }
+    let now = ctx.input(|i| i.time);
+    if app.ui.online.account_tried.is_some_and(|t| now - t < 30.0) {
+        return;
+    }
+    app.ui.online.account_tried = Some(now);
+    app.run_background(ctx, FILES, json!({"refresh": true}), Box::new(|_, _, _| {}));
 }
 
 /// Run `action` of `collab.manageFile` on recorded file `f` without the window waiting for the
@@ -103,7 +119,11 @@ pub fn section(app: &mut FigApp, ui: &mut Ui, main: Rect, t: &Tokens) {
         ui.spacing_mut().item_spacing.y = 6.0;
         widgets::label(
             ui,
-            tr("The files you shared or published online from this computer. They stay on their server until you remove them."),
+            if app.session.account_key().is_some() {
+                tr("The files you shared or published online from any of your devices with your account key. They stay on their server until you remove them.")
+            } else {
+                tr("The files you shared or published online from this computer. They stay on their server until you remove them.")
+            },
             t.text_secondary,
         );
         status(app, ui, t);

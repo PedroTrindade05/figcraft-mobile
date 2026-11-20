@@ -67,6 +67,8 @@ pub struct OnlineFile {
     /// When the server deletes it unless someone opens it (this run only).
     #[serde(skip)]
     pub expires: Option<u64>,
+    /// It is in your personal account on its server (see [`crate::sharing::account`]).
+    pub in_account: bool,
 }
 
 impl std::fmt::Debug for OnlineFile {
@@ -150,11 +152,12 @@ fn link(s: &str) -> bool {
 impl OnlineFile {
     /// The record made safe to use, or `None` when it can't be one (anything may be in a
     /// preferences file).
-    fn clean(mut self) -> Option<OnlineFile> {
+    pub(crate) fn clean(mut self) -> Option<OnlineFile> {
         self.server = plain_server(&self.server);
         let server = (self.server.starts_with("ws://") || self.server.starts_with("wss://")) && secret(&self.server, 512);
         let id = (1..=64).contains(&self.file.len()) && self.file.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_');
-        if !(server && id && secret(&self.owner, 512) && link(&self.edit)) {
+        // A file known through your account has no link here until this device makes one.
+        if !(server && id && secret(&self.owner, 512) && (link(&self.edit) || self.edit.is_empty())) {
             return None;
         }
         if !link(&self.view) {
@@ -343,12 +346,16 @@ impl Session {
     /// Ask every server once what became of the files recorded on it.
     fn online_refresh(&mut self) -> Result<()> {
         let mut servers: Vec<String> = Vec::new();
-        for f in &self.prefs.online_files {
-            if !servers.iter().any(|s| same_server(s, &f.server)) {
-                servers.push(f.server.clone());
+        // With an account, the server in Preferences may have its files from your other devices.
+        let preferred = plain_server(&self.prefs.publish_server);
+        let account = self.account_key().is_some() && !preferred.is_empty();
+        for server in self.prefs.online_files.iter().map(|f| &f.server).chain(account.then_some(&preferred)) {
+            if !servers.iter().any(|s| same_server(s, server)) {
+                servers.push(server.clone());
             }
         }
         for server in servers {
+            self.account_sync(&server)?;
             let asked: Vec<(String, String)> =
                 self.prefs.online_files.iter().filter(|f| same_server(&f.server, &server)).map(|f| (f.file.clone(), f.owner.clone())).collect();
             let req =
@@ -478,6 +485,9 @@ fn open_file(s: &mut Session, p: &Value) -> Result<Value> {
     let Some(f) = s.prefs.online_files.get(i).cloned() else { return Err(bad(CMD, "no such file")) };
     if f.state == FileState::Gone {
         return Err(bad(CMD, "this file is no longer on its server (it was removed or expired): `collab.forgetFile` clears it from the list"));
+    }
+    if f.edit.is_empty() {
+        return Err(bad(CMD, "this device has no link to the file yet: list your files again (`collab.files {refresh: true}`) to make one"));
     }
     let brief = |session: u64, status: &str, document: Option<usize>, open: bool| json!({"session": session, "status": status, "document": document, "alreadyOpen": open, "file": f.file, "server": f.server, "name": f.name});
     // Open already: its tab comes to the front.

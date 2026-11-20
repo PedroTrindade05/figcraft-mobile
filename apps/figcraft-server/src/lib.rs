@@ -87,6 +87,8 @@ pub fn start(cfg: &Config) -> Result<Running, String> {
 }
 
 #[cfg(test)]
+mod account_tests;
+#[cfg(test)]
 mod admin_budget_tests;
 #[cfg(test)]
 mod background_tests;

@@ -168,6 +168,62 @@ Scripts and agents use `collab.files {refresh?}`, `collab.openFile {file}`,
   upgrade the server binary and restart it: the data directory needs no migration and there is no
   setting to turn on.
 
+## Your personal account
+
+Your online files are remembered per device. A **personal account key** makes them one list on
+all of your devices: the computer, the phone (the browser build) and any other.
+
+- **Make a key once** on one device: Preferences ▸ Personal account ▸ **Create key**
+  (`collab.account {create: true}`). It is shown in groups of four (`7K2M-9QXT-…`): **Copy** it.
+- **On each other device**, paste or type it in **Key from another device** and press Enter
+  (`collab.account {key}`). Dashes, spaces and case don't matter, and O reads as 0, I and L as 1.
+- **Every file you put online** (Share ▸ Online, Publish) then goes in the account on its server:
+  the app asks the server once, with the file's owner token (`Admin::Claim`), the next time it
+  lists your online files, which it does by itself in the background a moment after the file goes
+  online.
+- **Listing your online files** (Home ▸ Online, `collab.files {refresh: true}`) also asks the server
+  in Preferences, and every server your files are on, for the account's files (`Admin::Account`).
+  Files from your other devices join the list. The first time a device sees one, it makes an edit
+  link of its own to it ("Account (this device)"), so it opens the file as its owner.
+- **The key manages the account's files** as their owner tokens do: open, share and stop sharing,
+  rename, remove, from any device.
+- **Leave account** takes the key off a device; the files it knew only through the account leave
+  its list (they stay on the server, and in the account).
+
+The key is a password for all of your files: anyone with it opens, changes and removes them. The
+server keeps only its SHA-256 (in each file's `meta.json`, `account`), never the key. The app keeps
+it with the preferences like owner tokens; the browser build keeps it, your online files and the
+server in Preferences in the page's local storage (`figcraft.account`), which every page of the
+same site can read: host the browser build on a site of its own. A server older than accounts
+can't read the requests: the files stay listed per device there, as before.
+
+**A private server for your own devices.** Run the server on your computer and reach it from your
+phone through a private network such as Tailscale, with HTTPS from the network's own certificate
+(the browser build needs `wss://` on an `https://` page):
+
+1. Start the server on the computer, on this machine only, open to publishing and keeping files
+   however long they go unopened: `figcraft-server serve --config server.toml` with a
+   `server.toml` like the one below. Behind the private network's proxy every device arrives from
+   the same address, so the limits per address are raised to the server's own.
+
+   ```toml
+   listen = "127.0.0.1:47900"
+   data = "figcraft-data"
+   public_url = "wss://<computer>.<tailnet>.ts.net/"
+   open_publish = true
+   idle_days = 0
+   max_files_per_ip = 1000
+   max_mb_per_ip = 10240
+   max_connections_per_ip = 256
+   connects_per_minute = 600
+   publishes_per_hour = 200
+   messages_per_second = 2000
+   ```
+2. Serve it on the private network over HTTPS: `tailscale serve --bg 47900`. The address is
+   `wss://<computer>.<tailnet>.ts.net/`.
+3. In Preferences on each device, set **Server for online sharing** to that address, and the same
+   personal account key. The phone needs the Tailscale app on, signed in to the same network.
+
 ## The team list
 
 A server only your team reaches (a private network, an allowlist in front of it) can list the files

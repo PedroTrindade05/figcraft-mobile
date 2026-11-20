@@ -192,6 +192,14 @@ impl Backend for Store {
                 };
             }
             Admin::Owned { files } => return self.owned(files).into(),
+            // Anyone may ask: a key no file is in lists nothing.
+            Admin::Account { key } => return self.account(key).into(),
+            Admin::Claim { file, account } => {
+                if owns != Some(file.as_str()) {
+                    return failed("an owner token manages only its own file");
+                }
+                return self.claim(file, account).into();
+            }
             // Anyone who reaches the server, when its operator turned the team list on.
             Admin::Team => return self.team(open).into(),
             Admin::Links { file }
@@ -239,6 +247,8 @@ impl Backend for Store {
             Admin::Code { file, token } => self.set_code(&file, &token).map_or_else(failed, |code| AdminReply::Code { code }.into()),
             Admin::Owned { files } => self.owned(&files).into(),
             Admin::Team => self.team(open).into(),
+            Admin::Account { key } => self.account(&key).into(),
+            Admin::Claim { file, account } => self.claim(&file, &account).into(),
             // The hub removes people itself (it knows who is connected); it never asks the store.
             Admin::RemovePeer { .. } => failed("removing someone from a file is done by the server's hub".into()),
             Admin::Remove { file } => {
